@@ -12,7 +12,7 @@ export const getNoteById = async (req, res) => {
 
   if (!note)
   {
-    return res.status(404).json({ message: "Note not found!" });
+    throw createHttpError(404, 'Note not found');
   }
   res.status(200).json(note);
 };
