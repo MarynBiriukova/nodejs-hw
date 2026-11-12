@@ -1,7 +1,12 @@
 import express from 'express';
 import 'dotenv/config';
 import cors from 'cors';
-import pino from 'pino-http';
+import { connectMongoDB } from './db/connectMongoDB.js';
+//import { Note } from './models/note.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import { notFoundHandler } from './middleware/notFoundHandler.js';
+import { logger } from './middleware/logger.js';
+import router from './routes/notesRoutes.js';
 
 const app = express();
 
@@ -10,57 +15,17 @@ const PORT = process.env.PORT ?? 3000;
 // Middleware для парсингу JSON
 app.use(express.json());
 app.use(cors()); // Дозволяє запити з будь-яких джерел
-app.use(
-  pino({
-    level: 'info',
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        colorize: true,
-        translateTime: 'HH:MM:ss',
-        ignore: 'pid,hostname',
-        messageFormat: '{req.method} {req.url} {res.statusCode} - {responseTime}ms',
-        hideObject: true,
-      },
-    },
-  }),
-);
-
-
-app.get('/notes', (req, res) => {
-  res.status(200).json({
-    message: "Retrieved all notes",
-  });
-});
-
-app.get('/notes/:noteId', (req, res) => {
-  const noteId = req.params.noteId;
-  res.status(200).json({ "message": `Retrieved note with ID: ${noteId}` });
-});
-
-// Маршрут для тестування middleware помилки
-app.get('/test-error', () => {
-  throw new Error('Simulated server error');
-});
+app.use(logger);
+app.use(router);
 
 
 // Middleware 404 (після всіх маршрутів)
-app.use((req, res) => {
-  res.status(404).json({ message: 'Route not found' });
-});
+app.use(notFoundHandler);
 
 // Middleware для обробки помилок (останнє)
-app.use((err, req, res, next) => {
-  console.error(err);
+app.use(errorHandler);
 
-  const isProd = process.env.NODE_ENV === "production";
-
-  res.status(500).json({
-    message: isProd
-    ? "Something went wrong. Please try again later."
-    :  err.message,
-    });
-});
+await connectMongoDB();
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
