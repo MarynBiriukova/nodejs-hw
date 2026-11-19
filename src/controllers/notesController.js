@@ -2,9 +2,46 @@ import { Note } from "../models/note.js";
 import createHttpError from 'http-errors';
 
 export const getAllNotes = async (req, res) => {
-  const notes = await Note.find();
-  res.status(200).json(notes);
+
+ // Отримуємо параметри пагінації
+  // і задаємо дефолтні значення
+  const { page = 1, perPage = 10, tag, search } = req.query;
+
+  const skip = (page - 1) * perPage;
+  const limit = perPage;
+  const filter = {};
+
+  if (tag !== undefined)
+  {
+    filter.tag = { $eq: tag };
+  }
+
+  if (search)
+  {
+    filter.$or = [
+      { title: { $regex: search, $options: 'i' } },
+      { content: { $regex: search, $options: 'i' } },
+    ];
+  }
+
+  // Виконуємо одразу два запити паралельно
+  const [totalNotes, notes] = await Promise.all([
+    Note.countDocuments(filter),
+    Note.find(filter).skip(skip).limit(limit),
+  ]);
+
+	// Обчислюємо загальну кількість «сторінок»
+  const totalPages = Math.ceil(totalNotes / perPage);
+
+  res.status(200).json({
+    page,
+    perPage,
+    totalNotes,
+    totalPages,
+    notes,
+  });
 };
+
 
 export const getNoteById = async (req, res) => {
   const noteId = req.params.noteId;
@@ -40,7 +77,7 @@ export const updateNote = async (req, res) => {
 
   const note = await Note.findOneAndUpdate(
     { _id: noteId }, // Шукаємо по id
-    req.body,//eggs, bread, coffee
+    req.body,
     { returnDocument: "after" }, // повертаємо оновлений документ
   );
 
